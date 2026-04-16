@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Drop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0c0c0e;
+      --card: #131316;
+      --card2: #1a1a1f;
+      --border: #25252d;
+      --border2: #2e2e38;
+      --text: #f0f0f5;
+      --muted: #6b6b7a;
+      --accent: #7c6dfa;
+      --accent2: #a78bfa;
+      --success: #34d399;
+      --danger: #f87171;
+      --warning: #fbbf24;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 64px;
+    }
+    #setup-banner {
+      width: 100%; max-width: 600px;
+      background: #1e1a0e;
+      border: 1px solid #4a3a10;
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 32px;
+    }
+    #setup-banner h2 {
+      font-size: 15px; color: var(--warning);
+      margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #setup-banner ol {
+      font-size: 13px; color: #c4a96d;
+      line-height: 2.2; padding-left: 18px;
+    }
+    #setup-banner code {
+      background: rgba(251,191,36,0.1);
+      border: 1px solid rgba(251,191,36,0.2);
+      border-radius: 4px; padding: 1px 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--warning);
+    }
+    .config-row { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+    .config-row input {
+      background: #0c0c0e;
+      border: 1px solid #4a3a10;
+      border-radius: 8px; padding: 10px 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; color: var(--warning); outline: none;
+      transition: border-color 0.2s;
+    }
+    .config-row input::placeholder { color: #5a4a30; }
+    .config-row input:focus { border-color: var(--warning); }
+    .btn-save {
+      background: var(--warning); color: #0c0c0e;
+      border: none; border-radius: 8px; padding: 10px 20px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: opacity 0.15s; align-self: flex-start;
+    }
+    .btn-save:hover { opacity: 0.85; }
+    header {
+      width: 100%; max-width: 600px;
+      margin-bottom: 36px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-icon svg { width: 18px; height: 18px; fill: white; }
+    .logo-text { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+    .logo-text span { color: var(--accent2); }
+    .status-dot { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    .dot.online { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .upload-zone {
+      width: 100%; max-width: 600px;
+      background: var(--card);
+      border: 2px dashed var(--border2);
+      border-radius: 16px; padding: 40px 24px;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      cursor: pointer; transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 28px; position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(124,109,250,0.05); }
+    .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .upload-icon {
+      width: 52px; height: 52px;
+      background: rgba(124,109,250,0.12);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .upload-icon svg { width: 26px; height: 26px; stroke: var(--accent2); fill: none; stroke-width: 1.5; }
+    .upload-title { font-size: 16px; font-weight: 600; }
+    .upload-sub { font-size: 13px; color: var(--muted); }
+    .upload-hint { font-size: 11px; color: var(--border2); font-family: 'JetBrains Mono', monospace; }
+    #progress-wrap {
+      width: 100%; max-width: 600px;
+      display: none; flex-direction: column; gap: 8px; margin-bottom: 20px;
+    }
+    .progress-label { font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
+    .progress-bar-bg { width: 100%; height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px; width: 0%; transition: width 0.3s;
+    }
+    .section-title {
+      width: 100%; max-width: 600px;
+      font-size: 12px; font-family: 'JetBrains Mono', monospace;
+      color: var(--muted); letter-spacing: 0.08em;
+      text-transform: uppercase; margin-bottom: 12px;
+    }
+    #files-list { width: 100%; max-width: 600px; display: flex; flex-direction: column; gap: 10px; }
+    .file-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 20px;
+      display: flex; align-items: center; gap: 14px;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .file-card-icon {
+      width: 42px; height: 42px;
+      background: rgba(124,109,250,0.1);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .file-card-icon svg { width: 20px; height: 20px; stroke: var(--accent2); fill: none; stroke-width: 1.5; }
+    .file-card-info { flex: 1; min-width: 0; }
+    .file-card-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-card-meta { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--muted); margin-top: 3px; }
+    .btn-dl {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(124,109,250,0.15);
+      border: 1px solid rgba(124,109,250,0.25);
+      color: var(--accent2); border-radius: 8px;
+      padding: 8px 14px; font-size: 13px; font-weight: 500;
+      cursor: pointer; text-decoration: none; transition: background 0.15s; white-space: nowrap;
+    }
+    .btn-dl:hover { background: rgba(124,109,250,0.25); }
+    .btn-dl svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .btn-del {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; padding: 6px; border-radius: 6px;
+      display: flex; transition: color 0.15s, background 0.15s;
+    }
+    .btn-del:hover { color: var(--danger); background: rgba(248,113,113,0.1); }
+    .btn-del svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+    #empty {
+      width: 100%; max-width: 600px;
+      text-align: center; padding: 48px 0;
+      color: var(--muted); font-size: 14px; display: none;
+    }
+    #empty svg { width: 40px; height: 40px; stroke: var(--border2); fill: none; stroke-width: 1; margin: 0 auto 14px; display: block; }
+    #toast {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--card2); border: 1px solid var(--border2);
+      border-radius: 10px; padding: 12px 20px;
+      font-size: 13px; opacity: 0;
+      transition: opacity 0.25s, transform 0.25s;
+      pointer-events: none; white-space: nowrap; z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.ok { border-color: var(--success); color: var(--success); }
+    #toast.err { border-color: var(--danger); color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<div id="setup-banner">
+  <h2>
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Configure o armazenamento (só uma vez)
+  </h2>
+  <ol>
+    <li>Acesse <code>supabase.com</code> → crie conta grátis → clique em <strong>New project</strong></li>
+    <li>No projeto, vá em <code>Storage</code> → <code>New bucket</code> → nome: <code>games</code> → marque <strong>Public bucket</strong> → Create</li>
+    <li>Vá em <code>Project Settings</code> → <code>API</code> → copie a <strong>Project URL</strong> e a chave <strong>anon public</strong></li>
+    <li>Cole abaixo e clique em Salvar — pronto, funciona pra sempre</li>
+  </ol>
+  <div class="config-row">
+    <input id="inp-url" type="text" placeholder="Project URL  →  https://xyzabc.supabase.co" />
+    <input id="inp-key" type="text" placeholder="anon public key  →  eyJhbGci..." />
+    <button class="btn-save" onclick="saveConfig()">Salvar e conectar</button>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M6 4h12a2 2 0 012 2v3a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2zm0 9h12a2 2 0 012 2v3a2 2 0 01-2 2H6a2 2 0 01-2-2v-3a2 2 0 012-2z"/></svg>
+    </div>
+    <div class="logo-text">Game<span>Drop</span></div>
+  </div>
+  <div class="status-dot">
+    <div class="dot" id="conn-dot"></div>
+    <span id="conn-label">desconectado</span>
+  </div>
+</header>
+
+<div class="upload-zone" id="drop-zone">
+  <input type="file" id="file-input" />
+  <div class="upload-icon">
+    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <div class="upload-title">Soltar arquivo aqui</div>
+  <div class="upload-sub">ou clique para escolher</div>
+  <div class="upload-hint">.zip · .rar · .7z · .exe · qualquer formato</div>
+</div>
+
+<div id="progress-wrap">
+  <div class="progress-label">
+    <span id="prog-name">Enviando...</span>
+    <span id="prog-pct">0%</span>
+  </div>
+  <div class="progress-bar-bg"><div class="progress-bar-fill" id="prog-fill"></div></div>
+</div>
+
+<div class="section-title">Arquivos disponíveis</div>
+<div id="files-list"></div>
+<div id="empty">
+  <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  Nenhum arquivo ainda. Suba o primeiro!
+</div>
+
+<div id="toast"></div>
+
+<script>
+  const BUCKET = 'games';
+  let sb = null;
+
+  const saved = JSON.parse(localStorage.getItem('gd_config') || '{}');
+  if (saved.url && saved.key) {
+    document.getElementById('inp-url').value = saved.url;
+    document.getElementById('inp-key').value = saved.key;
+    initSupabase(saved.url, saved.key);
+  }
+
+  function saveConfig() {
+    const url = document.getElementById('inp-url').value.trim();
+    const key = document.getElementById('inp-key').value.trim();
+    if (!url || !key) { toast('Preencha os dois campos', 'err'); return; }
+    localStorage.setItem('gd_config', JSON.stringify({ url, key }));
+    initSupabase(url, key);
+  }
+
+  async function initSupabase(url, key) {
+    try {
+      sb = window.supabase.createClient(url, key);
+      const { error } = await sb.storage.from(BUCKET).list('', { limit: 1 });
+      if (error) throw error;
+      document.getElementById('conn-dot').classList.add('online');
+      document.getElementById('conn-label').textContent = 'conectado';
+      document.getElementById('setup-banner').style.display = 'none';
+      toast('Conectado!', 'ok');
+      loadFiles();
+      setInterval(loadFiles, 8000);
+    } catch(e) {
+      document.getElementById('conn-dot').classList.remove('online');
+      document.getElementById('conn-label').textContent = 'erro de conexão';
+      toast('Erro: ' + (e.message || 'verifique URL e chave'), 'err');
+    }
+  }
+
+  async function loadFiles() {
+    if (!sb) return;
+    const { data, error } = await sb.storage.from(BUCKET).list('', {
+      sortBy: { column: 'created_at', order: 'desc' }
+    });
+    if (error) return;
+    renderFiles((data || []).filter(f => f.name !== '.emptyFolderPlaceholder'));
+  }
+
+  function renderFiles(files) {
+    const list = document.getElementById('files-list');
+    const empty = document.getElementById('empty');
+    list.innerHTML = '';
+    if (!files.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    files.forEach(f => {
+      const { data } = sb.storage.from(BUCKET).getPublicUrl(f.name);
+      const size = f.metadata?.size ? fmtSize(f.metadata.size) : '—';
+      const date = f.created_at ? new Date(f.created_at).toLocaleDateString('pt-BR') : '';
+      const card = document.createElement('div');
+      card.className = 'file-card';
+      card.innerHTML = `
+        <div class="file-card-icon">
+          <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="file-card-info">
+          <div class="file-card-name">${escHtml(f.name)}</div>
+          <div class="file-card-meta">${size}${date ? ' · ' + date : ''}</div>
+        </div>
+        <a class="btn-dl" href="${data.publicUrl}" download="${escHtml(f.name)}" target="_blank">
+          <svg viewBox="0 0 24 24"><path d="M12 3v13M7 11l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 21h14" stroke-linecap="round"/></svg>
+          Baixar
+        </a>
+        <button class="btn-del" onclick="deleteFile('${escAttr(f.name}')" title="Remover">
+          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>`;
+      list.appendChild(card);
+    });
+  }
+
+  async function deleteFile(name) {
+    if (!confirm('Remover "' + name + '"?')) return;
+    const { error } = await sb.storage.from(BUCKET).remove([name]);
+    if (error) { toast('Erro ao remover', 'err'); return; }
+    toast('Removido', 'ok');
+    loadFiles();
+  }
+
+  const fileInput = document.getElementById('file-input');
+  const dropZone = document.getElementById('drop-zone');
+
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) uploadFile(e.target.files[0]); });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
+  });
+
+  async function uploadFile(file) {
+    if (!sb) { toast('Configure o Supabase primeiro', 'err'); return; }
+    const wrap = document.getElementById('progress-wrap');
+    const fill = document.getElementById('prog-fill');
+    const pct = document.getElementById('prog-pct');
+    document.getElementById('prog-name').textContent = file.name;
+    wrap.style.display = 'flex';
+    fill.style.width = '5%'; pct.textContent = '5%';
+
+    let fake = 5;
+    const iv = setInterval(() => {
+      if (fake < 85) { fake += Math.random() * 7; fill.style.width = fake + '%'; pct.textContent = Math.round(fake) + '%'; }
+    }, 350);
+
+    const { error } = await sb.storage.from(BUCKET).upload(file.name, file, { upsert: true });
+    clearInterval(iv);
+
+    if (error) {
+      wrap.style.display = 'none';
+      toast('Erro no upload: ' + error.message, 'err');
+      return;
+    }
+    fill.style.width = '100%'; pct.textContent = '100%';
+    setTimeout(() => { wrap.style.display = 'none'; fill.style.width = '0%'; }, 800);
+    toast('Upload feito! 🎮', 'ok');
+    loadFiles();
+    fileInput.value = '';
+  }
+
+  function fmtSize(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+    return (b/1048576).toFixed(1) + ' MB';
+  }
+  function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function escAttr(s) { return s.replace(/'/g,"\\'"); }
+
+  function toast(msg, type) {
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.className = 'show ' + (type||'');
+    setTimeout(() => el.className = '', 3000);
+  }
+</script>
+</body>
+</html>
